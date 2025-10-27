@@ -1,0 +1,1388 @@
+package com.examly.springapp.advice;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import com.examly.springapp.exception.BookingNotFoundException;
+import com.examly.springapp.exception.InsufficientSeatCountException;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(InsufficientSeatCountException.class)
+    @ResponseStatus(code=HttpStatus.BAD_REQUEST)
+
+    public String handleException(InsufficientSeatCountException e)
+    {
+        return e.getMessage();
+    }
+
+    @ExceptionHandler(BookingNotFoundException.class)
+    @ResponseStatus(code=HttpStatus.BAD_REQUEST)
+
+    public String handleException(BookingNotFoundException e)
+    {
+        return e.getMessage();
+    }
+
+}
+
+
+----------------
+
+package com.examly.springapp.configuration;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+public class CrosConfig implements WebMvcConfigurer {
+
+    //  @Bean
+    // public WebMvcConfigurer corsConfigurer(){
+    //     return new WebMvcConfigurer() {
+    //         @Override
+    //         public void addCorsMappings(CorsRegistry registry) {
+    //             registry.addMapping("/**").allowedOrigins("*")
+    //             .allowedMethods("GET","POST","PUT","DELETE","OPTIONS").allowedHeaders("*")
+    //             .allowCredentials(false).maxAge(3600);
+    //         }
+    //     };
+    // } 
+}
+
+
+-------------
+
+package com.examly.springapp.configuration;
+
+import java.io.IOException;
+
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.stereotype.Component;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+@Component
+public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
+
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response,
+            AuthenticationException authException) throws IOException, ServletException {
+
+        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized");
+
+    }
+
+}
+
+----------------
+
+package com.examly.springapp.configuration;
+
+
+import jakarta.servlet.*;
+import jakarta.servlet.http.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.*;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import com.examly.springapp.service.UserService;
+import com.examly.springapp.service.serviceImpl.UserServiceImpl;
+
+import java.io.IOException;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    @Autowired 
+    private JwtUtils jwtUtils;
+    @Autowired 
+    private UserServiceImpl userService;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+                                    FilterChain filterChain) throws ServletException, IOException {
+
+        String path = request.getRequestURI();
+        
+        if("OPTIONS".equalsIgnoreCase(request.getMethod()))
+        {
+            filterChain.doFilter(request, response);
+            return ;
+        }
+        if(path.startsWith("/api/user/login") ||
+           path.startsWith("/api/user/register") ||
+           path.startsWith("/api/movie") ||
+           path.startsWith("/api/booking") ||
+           path.startsWith("/api/test")
+           ){
+            filterChain.doFilter(request,response);
+            return ;
+        }
+        final String authHeader = request.getHeader("Authorization");
+
+        String username = null;
+        String jwt = null;
+
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            jwt = authHeader.substring(7);
+            username = jwtUtils.extractUsername(jwt);
+        }
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserDetails userDetails = userService.loadUserByUsername(username);
+
+            if (jwtUtils.validateToken(jwt, userDetails)) {
+                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                    userDetails, null, userDetails.getAuthorities());
+
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authToken);
+            }
+        }
+
+        filterChain.doFilter(request, response);
+    }
+}
+
+-----------------
+
+package com.examly.springapp.configuration;
+
+import io.jsonwebtoken.*;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Component;
+import java.util.*;
+import java.util.function.Function;
+
+@Component
+public class JwtUtils {
+    private static final String SECRET_KEY = "Java";
+
+    public String extractUsername(String token) {
+        return extractClaim(token, Claims::getSubject);
+    }
+
+    public Date extractExpiration(String token) {
+        return extractClaim(token, Claims::getExpiration);
+    }
+
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        return claimsResolver.apply(extractAllClaims(token));
+    }
+
+    public Claims extractAllClaims(String token) {
+        return Jwts.parser().setSigningKey(SECRET_KEY).parseClaimsJws(token).getBody();
+    }
+
+    public Boolean isTokenExpired(String token) {
+        return extractExpiration(token).before(new Date());
+    }
+
+    public String generateToken(UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+        return createToken(claims, userDetails.getUsername());
+    }
+
+    public String createToken(Map<String, Object> claims, String subject) {
+        return Jwts.builder()
+            .setClaims(claims)
+            .setSubject(subject)
+            .setIssuedAt(new Date(System.currentTimeMillis()))
+            .setExpiration(new Date(System.currentTimeMillis()+1000*60*60))
+            .signWith(SignatureAlgorithm.HS256, SECRET_KEY).compact();
+    }
+
+    public Boolean validateToken(String token, UserDetails userDetails) {
+        return extractUsername(token).equals(userDetails.getUsername()) && !isTokenExpired(token);
+    }
+}
+
+-------------
+
+package com.examly.springapp.configuration;
+
+
+import com.examly.springapp.service.UserService;
+import com.examly.springapp.service.serviceImpl.UserServiceImpl;
+
+import java.util.List;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.*;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.*;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.*;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   JwtAuthenticationFilter jwtFilter,
+                                                   JwtAuthenticationEntryPoint unauthorizedHandler,
+                                                   UserServiceImpl userService) throws Exception {
+        http
+            .cors().and()
+            .csrf(csrf -> csrf.disable())
+
+            .authorizeHttpRequests(auth -> auth
+
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                .requestMatchers("/api/user/**","/api/movie/**", "/api/booking/**","/api/test/**").permitAll()
+
+                .requestMatchers("/admin/**").hasRole("ADMIN")
+
+                .anyRequest().authenticated()
+            )
+
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthorizedHandler))
+
+            .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+        http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(HttpSecurity http,
+                                                       UserServiceImpl userService) throws Exception {
+        AuthenticationManagerBuilder builder = http.getSharedObject(AuthenticationManagerBuilder.class);
+
+        builder.userDetailsService(userService).passwordEncoder(passwordEncoder());
+
+        return builder.build();
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOrigins(List.of("*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(false);
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+
+
+}
+
+
+
+-------------
+
+
+package com.examly.springapp.configuration;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+
+import com.examly.springapp.entity.User;
+
+import java.util.Collection;
+import java.util.Collections;
+
+public class UserPrinciple implements UserDetails {
+
+    private final User user;
+
+    public UserPrinciple(User user) {
+        this.user = user;
+    }
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getUserRole()));
+    }
+
+    @Override
+    public String getPassword() {
+        return user.getPassword();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getUsername();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return true;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
+
+   
+}
+
+------------
+
+package com.examly.springapp.controller;
+
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.examly.springapp.entity.Booking;
+import com.examly.springapp.service.BookingService;
+import com.examly.springapp.service.MovieService;
+
+@RestController
+@RequestMapping("/api/booking")
+public class BookingController {
+
+    BookingService bookingService;
+    MovieService movieService;
+
+    @Autowired
+    public BookingController(BookingService bookingService, MovieService movieService) {
+        this.bookingService = bookingService;
+        this.movieService = movieService;
+    }
+
+    @PostMapping("/movie/{userId}/{movieId}")
+    public ResponseEntity<Booking> addBookings(@PathVariable Integer userId, @PathVariable Long movieId,
+            @RequestBody Booking booking) {
+        Booking newBooking = bookingService.createBooking(userId, movieId, booking);
+        if (newBooking == null) {
+            return ResponseEntity.status(409).build();
+        }
+        return ResponseEntity.status(201).body(newBooking);
+    }
+
+    @GetMapping("/{bookingId}")
+    public ResponseEntity<Booking> getById(@PathVariable long bookingId) {
+        Booking booking = bookingService.getBookingById(bookingId);
+        if (booking == null) {
+            return ResponseEntity.status(409).build();
+        }
+        return ResponseEntity.status(200).body(booking);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Booking>> getAllBooks() {
+        List<Booking> list = bookingService.getAllBookings();
+        // if (list.isEmpty()) {
+        // return ResponseEntity.status(404).build();
+        // }
+        return ResponseEntity.status(200).body(list);
+    }
+
+    @DeleteMapping("/{bookingId}")
+    public ResponseEntity<Boolean> deleteBooking(@PathVariable Long bookingId) {
+        if (!bookingService.deleteBooking(bookingId)) {
+            return ResponseEntity.status(409).build();
+        }
+        return ResponseEntity.status(200).body(true);
+    }
+
+    @GetMapping("/movie/{movieId}")
+    public ResponseEntity<List<Booking>> getByMovieId(@PathVariable Long movieId) {
+        List<Booking> list = bookingService.getBookingsByMovieId(movieId);
+        if (list.isEmpty()) {
+            return ResponseEntity.status(404).build();
+        }
+        return ResponseEntity.status(200).body(list);
+    }
+
+
+    @PutMapping("/{bookingId}")
+    public ResponseEntity<Booking> updateBooking(@PathVariable Long bookingId,@RequestBody Booking booking) {
+        Booking b = bookingService.updateBooking(bookingId, booking);
+        if (b == null) {
+            return ResponseEntity.status(404).build();
+        }
+        return ResponseEntity.status(200).body(b);
+    }
+
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<List<Booking>> getByUserId(@PathVariable int userId) {
+        List<Booking> list = bookingService.getBookingsByUserId(userId);
+        // if (list.isEmpty()) {
+        //     return ResponseEntity.status(404).build();
+        // }
+        return ResponseEntity.status(200).body(list);
+    }
+}
+
+
+
+-------------------
+
+package com.examly.springapp.controller;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.examly.springapp.entity.Movie;
+import com.examly.springapp.service.MovieService;
+
+@RestController
+@CrossOrigin(origins="*")
+public class MovieController {
+
+    @Autowired
+    MovieService movieService;
+
+    @PostMapping("/api/movie")
+    public ResponseEntity<Movie> addMovie(@RequestBody Movie movie)
+    {
+        Movie m = movieService.addMovie(movie);
+        if(m!=null)
+        {
+            return ResponseEntity.status(200).body(m);
+        }
+        else
+        {
+            return ResponseEntity.status(500).body(null);
+        }
+    }
+
+    @PutMapping("/api/movie/{movieId}")
+    public ResponseEntity<Movie> updateMovie(@PathVariable long movieId, @RequestBody Movie movie)
+    {
+        Optional<Movie> m = movieService.updateMovie(movieId,movie);
+        if(m.isPresent())
+        {
+            Movie mo = m.get();
+            return ResponseEntity.status(200).body(mo);
+        }
+        else
+        {
+            return ResponseEntity.status(404).body(null);
+        }
+    }
+
+    @GetMapping("/api/movie")
+    public ResponseEntity<List<Movie>> getAllMovies()
+    {
+        List<Movie> m = movieService.getAllMovies();
+        if(!m.isEmpty())
+        {
+            return ResponseEntity.status(200).body(m);
+        }
+        else
+        {
+            return ResponseEntity.status(204).body(null);
+        }
+    }
+
+    @GetMapping("/api/movie/{movieId}")
+    public ResponseEntity<Movie> getMovieById(@PathVariable long movieId)
+    {
+        Optional<Movie> m = movieService.getMovieById(movieId);
+        if(m.isPresent())
+        {
+            Movie mo = m.get();
+            return ResponseEntity.status(200).body(mo);
+        }
+        else
+        {
+            return ResponseEntity.status(204).body(null);
+        }
+    }
+
+    @DeleteMapping("/api/movie/{movieId}")
+    public ResponseEntity<Boolean> deleteById(@PathVariable long movieId)
+    {
+        boolean m = movieService.deleteMovie(movieId);
+        if(m)
+        {
+            return ResponseEntity.status(200).body(true);
+        }
+        else
+        {
+            return ResponseEntity.status(204).body(null);
+        }
+    }
+
+}
+
+
+
+----------------
+
+
+package com.examly.springapp.controller;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.examly.springapp.configuration.JwtUtils;
+import com.examly.springapp.entity.User;
+import com.examly.springapp.service.UserService;
+
+@RestController
+@CrossOrigin(origins="*")
+public class UserController {
+
+    @Autowired
+    private UserService uservice;
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private JwtUtils jwtUtils;
+
+    @PostMapping("api/user/register")
+    public ResponseEntity<?> register(@RequestBody User user)
+    {
+        User u = uservice.registerUser(user);
+        if(u!=null){
+            return ResponseEntity.status(200).body(u);
+        }
+        return ResponseEntity.status(500).build();
+        
+    }
+
+    @PostMapping("api/user/login")
+    public ResponseEntity<?> login(@RequestBody User user)
+    {
+        try{
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword()));
+            final UserDetails userDetails = uservice.loadUserByUsername(user.getUsername());
+            final String jwt =  jwtUtils.generateToken(userDetails);
+
+            User dbUser = uservice.getUserByUsername(user.getUsername());
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", jwt);
+            // response.put("user", Map.of("username", dbUser.getUsername(), "userRole", dbUser.getUserRole()));
+            response.put("user", Map.of("userId",dbUser.getUserId(),"username", dbUser.getUsername(), "userRole", dbUser.getUserRole()));
+            return new ResponseEntity<>(response,HttpStatus.OK);
+        }
+        catch(Exception e)
+        {
+            return new ResponseEntity<>("Login Failed",HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @GetMapping("api/user")
+    public ResponseEntity<?> getAllUsers()
+    {
+        List<User> users = uservice.getAllUser();
+        return ResponseEntity.status(200).body(users);
+    }
+
+}
+
+
+
+-------------
+
+package com.examly.springapp.entity;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name="Booking")
+public class Booking {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private long bookingId;
+    private int seatCount;
+    private double totalCost;
+    private String status;
+
+    @ManyToOne
+    @JoinColumn(name = "movieId")
+    private Movie movie;
+
+    @ManyToOne
+    @JoinColumn(name = "userId")
+    private User user;
+
+    public User getUser() {
+        return user;
+    }
+    public void setUser(User user) {
+        this.user = user;
+    }
+    public Booking() {
+    }
+    public Booking(long bookingId, int seatCount, double totalCost, Movie movie, String status) {
+        this.bookingId = bookingId;
+        this.seatCount = seatCount;
+        this.totalCost = totalCost;
+        this.movie = movie;
+        this.status = status;
+    }
+    public long getBookingId() {
+        return bookingId;
+    }
+    public void setBookingId(long bookingId) {
+        this.bookingId = bookingId;
+    }
+    public int getSeatCount() {
+        return seatCount;
+    }
+    public void setSeatCount(int seatCount) {
+        this.seatCount = seatCount;
+    }
+    public double getTotalCost() {
+        return totalCost;
+    }
+    public void setTotalCost(double totalCost) {
+        this.totalCost = totalCost;
+    }
+    public Movie getMovie() {
+        return movie;
+    }
+    public void setMovie(Movie movie) {
+        this.movie = movie;
+    }
+    public String getStatus() {
+        return status;
+    }
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    
+}
+
+
+--------------
+
+package com.examly.springapp.entity;
+
+import jakarta.annotation.Generated;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name="Movie")
+public class Movie {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private long movieId;
+    private String title;
+    private int duration;
+    private String genre;
+    private int price;
+    private int availableSeats;
+
+    public Movie() {
+    }
+
+    public Movie(long movieId, String title, int duration, String genre, int price, int availableSeats) {
+        this.movieId = movieId;
+        this.title = title;
+        this.duration = duration;
+        this.genre = genre;
+        this.price = price;
+        this.availableSeats = availableSeats;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    public int getDuration() {
+        return duration;
+    }
+
+    public void setDuration(int duration) {
+        this.duration = duration;
+    }
+
+    public String getGenre() {
+        return genre;
+    }
+
+    public void setGenre(String genre) {
+        this.genre = genre;
+    }
+
+    public int getPrice() {
+        return price;
+    }
+
+    public void setPrice(int price) {
+        this.price = price;
+    }
+
+    public long getMovieId() {
+        return movieId;
+    }
+
+    public void setMovieId(long movieId) {
+        this.movieId = movieId;
+    }
+
+    public int getAvailableSeats() {
+        return availableSeats;
+    }
+
+    public void setAvailableSeats(int availableSeats) {
+        this.availableSeats = availableSeats;
+    }
+
+    
+}
+
+
+
+--------------
+
+package com.examly.springapp.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+
+@Entity
+public class User {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private int userId;
+
+    private String email;
+    private String password;
+
+    @Column(unique = true)
+    private String username;
+    
+    private String mobileNumber;
+    private String userRole;
+
+    public int getUserId() {
+        return userId;
+    }
+    public void setUserId(int userId) {
+        this.userId = userId;
+    }
+    public String getEmail() {
+        return email;
+    }
+    public void setEmail(String email) {
+        this.email = email;
+    }
+    public String getPassword() {
+        return password;
+    }
+    public void setPassword(String password) {
+        this.password = password;
+    }
+    public String getUsername() {
+        return username;
+    }
+    public void setUsername(String username) {
+        this.username = username;
+    }
+    public String getMobileNumber() {
+        return mobileNumber;
+    }
+    public void setMobileNumber(String mobileNumber) {
+        this.mobileNumber = mobileNumber;
+    }
+    public String getUserRole() {
+        return userRole;
+    }
+    public void setUserRole(String userRole) {
+        this.userRole = userRole;
+    }
+
+}
+
+
+------------------
+
+package com.examly.springapp.entity;
+
+public class UserDTO {
+
+    private String username;
+    private String role;
+
+    public UserDTO() {
+    }
+
+    public UserDTO(String username, String role) {
+        this.username = username;
+        this.role = role;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+    public void setUsername(String username) {
+        this.username = username;
+    }
+    public String getRole() {
+        return role;
+    }
+    public void setRole(String role) {
+        this.role = role;
+    }
+}
+
+
+-----------
+
+
+package com.examly.springapp.exception;
+
+public class BookingNotFoundException extends RuntimeException{
+
+    public BookingNotFoundException(String message)
+    {
+        super(message);
+    }
+
+
+}
+
+
+------------
+
+package com.examly.springapp.exception;
+
+public class InsufficientSeatCountException extends RuntimeException{
+
+    public InsufficientSeatCountException(String errorMessage)
+    {
+        super(errorMessage);
+    }
+
+}
+
+
+------------
+
+package com.examly.springapp.repository;
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
+import com.examly.springapp.entity.Booking;
+
+import jakarta.transaction.Transactional;
+
+public interface BookingRepo extends JpaRepository<Booking,Long>{
+
+    @Query("Select b from Booking b where b.movie.movieId = :movieId")
+    List<Booking> findByMovieId(long movieId);
+
+    @Query("Select b from Booking b where b.user.userId = :userId")
+    List<Booking> findByUserId(int userId);
+
+    @Transactional
+    @Modifying
+    @Query("Delete from Booking b where b.movie.movieId = :movieId")
+    void deleteByMovieId(long movieId);
+}
+
+
+
+----------
+
+
+package com.examly.springapp.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import com.examly.springapp.entity.Movie;
+
+@Repository
+public interface MovieRepo extends JpaRepository<Movie,Long>{
+    
+
+}
+
+
+
+----------
+
+
+package com.examly.springapp.repository;
+
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.examly.springapp.entity.User;
+
+public interface UserRepo extends JpaRepository<User,Integer>{
+
+    Optional<User> findByUsername(String username);
+    User findByEmail(String email);
+    boolean existsByEmail(String email);
+
+    User getUserByUsername(String username);
+
+}
+
+
+
+------
+
+package com.examly.springapp.service;
+
+import java.util.List;
+
+import com.examly.springapp.entity.Booking;
+
+public interface BookingService {
+
+    Booking createBooking(int userId, Long movieId, Booking booking);
+
+    Booking updateBooking(Long bookingId, Booking booking);
+
+    Booking getBookingById(Long bookingId);
+
+    List<Booking> getAllBookings();
+
+    boolean deleteBooking(Long bookingId);
+
+    List<Booking> getBookingsByUserId(int userId);
+    
+    List<Booking> getBookingsByMovieId(long movieId);
+
+
+}
+
+
+---------
+
+package com.examly.springapp.service;
+
+import java.util.List;
+import java.util.Optional;
+
+import com.examly.springapp.entity.Movie;
+
+public interface MovieService {
+
+    Movie addMovie(Movie movie);
+
+    List<Movie> getAllMovies();
+
+    Optional<Movie> getMovieById(long id);
+
+    Optional<Movie> updateMovie(long id, Movie newMovie);
+
+    boolean deleteMovie(long id);
+
+}
+
+
+
+------------
+
+
+package com.examly.springapp.service;
+
+import java.util.List;
+
+import org.springframework.security.core.userdetails.UserDetails;
+
+import com.examly.springapp.entity.User;
+
+public interface UserService {
+
+    User registerUser(User user);
+
+    List<User> getAllUser();
+
+    User loginUser(User user);
+
+    UserDetails loadUserByUsername(String username);
+
+    User getUserByUsername(String username);
+
+}
+
+
+
+----------------
+
+package com.examly.springapp.service.serviceImpl;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.examly.springapp.entity.Booking;
+import com.examly.springapp.entity.Movie;
+import com.examly.springapp.entity.User;
+import com.examly.springapp.exception.BookingNotFoundException;
+import com.examly.springapp.exception.InsufficientSeatCountException;
+import com.examly.springapp.repository.BookingRepo;
+import com.examly.springapp.repository.MovieRepo;
+import com.examly.springapp.repository.UserRepo;
+import com.examly.springapp.service.BookingService;
+
+@Service
+public class BookingServiceImpl implements BookingService{
+
+    BookingRepo bookingRepo;
+    MovieRepo movieRepo;
+    UserRepo userRepo;
+
+    @Autowired
+    public BookingServiceImpl(BookingRepo bookingRepo, MovieRepo movieRepo, UserRepo userRepo) {
+        this.bookingRepo = bookingRepo;
+        this.movieRepo = movieRepo;
+        this.userRepo = userRepo;
+    }
+
+    @Override
+    public Booking createBooking(int userId, Long movieId, Booking booking) {
+        // List<Booking> list = bookingRepo.findAll();
+        // if (list.size() > booking.getSeatCount()) {
+        //     throw new InsufficientSeatCountException("Insufficient seats");
+        // }
+
+        
+        Optional<Movie> optMovie = movieRepo.findById(movieId);
+        Optional<User> optUser = userRepo.findById(userId);
+        if (!optMovie.isPresent()) {
+            return null;
+        }
+
+        User u = optUser.get();
+        Movie m = optMovie.get();  
+        if(m.getAvailableSeats() < booking.getSeatCount()){
+            throw new InsufficientSeatCountException("Insufficient Seats");
+        }
+
+        m.setAvailableSeats(m.getAvailableSeats() - booking.getSeatCount());
+        movieRepo.save(m);
+        booking.setUser(u);
+        booking.setMovie(m);
+
+        // m.getBookings().add(booking);
+
+        bookingRepo.save(booking);
+        return booking;
+    }
+
+    
+    @Override
+    public Booking updateBooking(Long bookingId, Booking booking) {
+        Optional<Booking> optbook = bookingRepo.findById(bookingId);
+        if(optbook.isPresent()){
+            booking.setBookingId(bookingId);
+            return bookingRepo.save(booking);
+        }
+        return null;
+    }
+
+    @Override
+    public Booking getBookingById(Long bookingId) {
+
+        Optional<Booking> optBooking = bookingRepo.findById(bookingId);
+        if (!optBooking.isPresent()) {
+            throw new BookingNotFoundException("booking not present");
+        }
+        return optBooking.get();
+    }
+
+    @Override
+    public List<Booking> getAllBookings() {
+        return bookingRepo.findAll();
+    }
+
+    @Override
+    public boolean deleteBooking(Long bookingId) {
+        Optional<Booking> optBooking = bookingRepo.findById(bookingId);
+        if (!optBooking.isPresent()) {
+            throw new BookingNotFoundException("booking not present");
+        }
+        Booking booking = optBooking.get();
+        Movie movie = booking.getMovie();
+
+        movie.setAvailableSeats(movie.getAvailableSeats() + booking.getSeatCount());
+        movieRepo.save(movie);
+        bookingRepo.deleteById(bookingId);
+        return true;
+    }
+
+    @Override
+    public List<Booking> getBookingsByMovieId(long movieId) {
+        return bookingRepo.findByMovieId(movieId);
+    }
+
+    @Override
+    public List<Booking> getBookingsByUserId(int userId) {
+        return bookingRepo.findByUserId(userId);
+    }
+
+}
+
+
+
+--------------
+
+
+package com.examly.springapp.service.serviceImpl;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.examly.springapp.entity.Movie;
+import com.examly.springapp.repository.BookingRepo;
+import com.examly.springapp.repository.MovieRepo;
+import com.examly.springapp.service.MovieService;
+
+@Service("movieService")
+public class MovieServiceImpl implements MovieService{
+
+    @Autowired
+    MovieRepo movieRepo;
+
+    @Autowired
+    BookingRepo bookingRepo;
+
+    @Override
+    public Movie addMovie(Movie movie) {
+       return movieRepo.save(movie);
+    }
+
+    @Override
+    public List<Movie> getAllMovies() {
+        return movieRepo.findAll();
+    }
+
+    @Override
+    public Optional<Movie> getMovieById(long id) {
+        return movieRepo.findById(id);
+        
+    }
+
+    @Override
+    public Optional<Movie> updateMovie(long id, Movie newMovie) {
+        if(movieRepo.existsById(id))
+        {
+            Optional<Movie> obs = movieRepo.findById(id);
+            Movie m = obs.get();
+            m.setTitle(newMovie.getTitle());
+            m.setDuration(newMovie.getDuration());
+            m.setGenre(newMovie.getGenre());
+            m.setPrice(newMovie.getPrice());
+            m.setAvailableSeats(newMovie.getAvailableSeats());
+            Movie mo = movieRepo.save(m);
+            Optional ops = Optional.of(mo);
+            return ops;
+        }
+        return null;
+    }
+
+    @Override
+    public boolean deleteMovie(long id) {
+        if(movieRepo.existsById(id))
+        {
+            bookingRepo.deleteByMovieId(id);
+            
+            movieRepo.deleteById(id);
+            return true;
+        }
+        return false;
+    }
+
+
+
+}
+
+
+
+-------------
+
+
+package com.examly.springapp.service.serviceImpl;
+
+import java.lang.StackWalker.Option;
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+import com.examly.springapp.configuration.UserPrinciple;
+import com.examly.springapp.entity.User;
+import com.examly.springapp.repository.UserRepo;
+import com.examly.springapp.service.UserService;
+
+@Service
+
+public class UserServiceImpl  implements UserService, UserDetailsService {
+
+    @Autowired
+    private UserRepo uRepo;
+
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+
+    @Override
+    public User registerUser(User user) {
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
+        return uRepo.save(user);
+    }
+
+    @Override
+    public List<User> getAllUser() {
+       return uRepo.findAll();
+    }
+
+    @Override
+    public User loginUser(User user) {
+       Optional<User> foundUser = uRepo.findByUsername(user.getUsername());
+       if(foundUser.isPresent())
+       {
+        User dbUser = foundUser.get();
+
+        if(passwordEncoder.matches(user.getPassword(),dbUser.getPassword())) {
+            return dbUser;
+        }
+       }
+       return null;
+    }
+
+    @Override
+    public UserDetails loadUserByUsername(String username) {
+        User user = uRepo.findByUsername(username).get();
+        if (user == null)
+            throw new UsernameNotFoundException("User Not Found");
+        return new UserPrinciple(user);
+    }
+
+    @Override
+    public User getUserByUsername(String username) {
+       return uRepo.getUserByUsername(username);
+    }
+
+}
+
+
+
+--------------
+
+
+package com.examly.springapp;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class SpringappApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(SpringappApplication.class, args);
+	}
+
+}

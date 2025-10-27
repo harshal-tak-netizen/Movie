@@ -1,0 +1,2200 @@
+import { Component, OnInit } from '@angular/core';
+import { Movie } from 'src/app/models/movie.model';
+import { MovieService } from 'src/app/services/movie.service';
+import {ActivatedRoute, Router} from '@angular/router';
+
+@Component({
+  selector: 'app-adminaddmovie',
+  templateUrl: './adminaddmovie.component.html',
+  styleUrls: ['./adminaddmovie.component.css']
+})
+export class AdminaddmovieComponent implements OnInit {
+
+  movie: Movie = {
+      movieId: 0,
+      title: "",
+      genre: "",
+      duration: 0,
+      price: 0,
+      availableSeats: 0
+  };
+
+  isEditing: boolean;
+  errorMessage: string;
+  movieId: number;
+  showPopup: boolean = false;
+
+  movies: Movie[] = [];
+
+  
+  ngOnInit(): void {
+    // this.loadMovie();
+    this.route.paramMap.subscribe((params)=>{
+      const id = params.get('id');
+      if(id)
+      {
+        this.isEditing = true;
+        this.movieId = +id;
+        this.movieService.getMovieById(this.movieId).subscribe((data)=>{
+          this.movie = data;
+        }, (error)=>{
+          
+        });
+      }
+      else
+      {
+        this.isEditing = false;
+      }
+    })
+  }
+
+  constructor(private movieService: MovieService, private router:Router, private route:ActivatedRoute){}
+
+  // loadMovie()
+  // {
+  //   this.movieService.getMovies().subscribe((data)=>{
+  //     this.movies = data;
+  //     console.log("Got all movies")
+  //   });
+  // } 
+
+  addOrUpdateMovie()
+  {
+    if(!this.isEditing)
+    {
+      console.log("Current movie: " + this.movie);
+
+      this.movieService.addMovie(this.movie).subscribe((data)=>{
+        console.log("Added movie: " + JSON.stringify(data));
+        this.showPopup = true;
+      },(error)=>{
+        this.errorMessage = 'Error in adding the movie';
+      });
+    }
+    else
+    {
+      console.log("Current movie: " + this.movie);
+
+      this.movieService.updateMovie(this.movieId,this.movie).subscribe((data)=>{
+        console.log("Updated movie: " + JSON.stringify(data));
+        this.showPopup = true;
+      },(error)=>{
+        this.errorMessage = 'Error in updating the movie';
+      });
+    }
+  }
+
+  closeModal()
+  {
+    this.router.navigate(['/admin/view/Movies']);
+  }
+
+
+}
+
+
+------------------
+
+<nav>
+    <app-adminnav></app-adminnav>
+</nav>
+
+<div class="movie-form">
+<form #movieForm="ngForm" (ngSubmit)="addOrUpdateMovie()">
+    <h1>Add New Movie</h1>
+
+    <label for="title">Movie Title: </label>
+    <input type="text" id="title" name="title" [(ngModel)]="movie.title">
+
+    <br><br>
+
+    <label for="genre">Movie Genre: </label>
+    <input type="text" id="genre" name="genre" [(ngModel)]="movie.genre">
+
+    <br><br>
+
+    <label for="duration">Movie Duration: </label>
+    <input type="text" id="duration" name="duration" [(ngModel)]="movie.duration">
+
+    <br><br>
+
+    <label for="price">Movie Price: </label>
+    <input type="text" id="price" name="price" [(ngModel)]="movie.price">
+
+    <br><br>
+
+    <label for="availableSeats">Available Seats: </label>
+    <input type="text" id="availableSeats" name="availableSeats" [(ngModel)]="movie.availableSeats">
+
+    <br><br>
+
+    <button *ngIf="!isEditing"type="submit">Add Movie</button>
+    <button *ngIf="isEditing"type="submit">Update Movie</button>
+</form>
+
+<div *ngIf="showPopup" class="popup">
+    <h3>New Movie Added successfully</h3>
+    <button class="close-btn" (click)="closeModal()">X</button>
+</div>
+</div>
+
+
+---------------------
+
+.movie-form {
+    width: 90%;
+    max-width: 700px;
+    justify-content: center;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    margin: 60px auto 0 auto;
+    padding: 32px 24px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+.popup {
+    position:fixed;
+    top: 20%;
+    left: 50%;
+    transform: translate(-50%,-20%);
+    background-color: skyblue;
+    border: 2px solid black;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.popup h3 {
+    margin: 0 0 10px;
+    color: black;
+}
+
+.close-btn {
+    background-color: white;
+    color: black;
+    padding: 6px;
+    border: none;
+    border-radius: 4px;
+}
+
+.close-btn:hover {
+    background-color: skyblue;
+    color: white;
+}
+
+----------------
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from 'src/app/services/auth.service';
+
+@Component({
+  selector: 'app-adminnav',
+  templateUrl: './adminnav.component.html',
+  styleUrls: ['./adminnav.component.css']
+})
+export class AdminnavComponent implements OnInit {
+
+  showDropdown = false;
+  showLogoutPopup = false;
+  constructor(private router: Router, private service:AuthService) { }
+
+  ngOnInit(): void {
+    this.getUsername();
+  }
+
+  username: string = "";
+  getUsername(): void {
+    this.username = this.service.getUser();
+  }
+
+  toggleDropdown(): void {
+    this.showDropdown = !this.showDropdown;
+  }
+
+  logout(): void {
+    this.showLogoutPopup = false;
+    this.service.logout()
+    this.router.navigate(['/login']);
+  }
+
+  cancelLogout(): void {
+    this.showLogoutPopup = false;
+  }
+
+  confirmLogout()
+ {
+  this.showLogoutPopup = true;
+ }
+
+}
+
+
+------------
+
+<nav class="admin-navbar">
+    <div class="nav-title">Movie Admin</div>
+    <ul class="nav-left">
+      <li class="dropdown">
+        <a (click)="toggleDropdown()" class="drop-btn">Movies</a>
+        <ul class="dropdown-content" *ngIf="showDropdown">
+          <li><a routerLink="/admin/add/newMovies">Add Movies</a></li>
+          <li><a routerLink="/admin/view/Movies">View Movies</a></li>
+        </ul>
+      </li>
+    </ul>
+    <div class="nav-center">
+      <a routerLink="/admin/view/AllBookings">Movie Bookings</a>
+    </div>
+    <div class="user-section">
+      <h3>Welcome to the club: {{username}}</h3>
+    </div>
+    <div class="nav-right">
+      <a (click)="confirmLogout()" style="background-color: red; padding: 10px;">Logout</a>
+    </div>
+    <div *ngIf="showLogoutPopup" class="logout-popup">
+      <p>Are you sure you want to logout?</p>
+      <button (click)="logout()">Yes</button>
+      <button (click)="cancelLogout()">No</button>
+    </div>
+  </nav>
+  
+
+---------------
+
+.admin-navbar {
+  background: rgba(135, 206, 235, 0.85);
+  backdrop-filter: blur(6px);
+  width: 95%;
+  color: #222;
+  padding: 14px 32px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0 0 18px 18px;
+  box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.18);
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+  transition: box-shadow 0.3s, background 0.3s;
+  }
+  
+  .nav-title {
+    font-weight: bold;
+    font-size: 1.3em;
+    margin-right: 30px;
+  }
+  
+  .nav-left, .nav-center, .nav-right {
+    display: flex;
+    align-items: center;
+  }
+  
+  .nav-left {
+    flex: 1;
+    gap: 20px;
+  }
+
+  .user-section {
+    flex: 1;
+    justify-content: center;
+    /* background-color: white;
+    padding: 10px; */
+  }
+  
+  .nav-center {
+    flex: 1;
+    justify-content: center;
+  }
+  
+  .nav-right {
+    flex: 1;
+    justify-content: flex-end;
+  }
+  
+  .nav-left ul,
+  .nav-left li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .dropdown {
+    position: relative;
+  }
+  
+  .drop-btn {
+    cursor: pointer;
+    /* background: none; */
+    background-color: white;
+    border: none;
+    color: #222;
+    font-size: 1em;
+    padding: 8px 12px;
+  }
+  
+  .dropdown-content {
+    display: block;
+    position: absolute;
+    background: #fff;
+    min-width: 160px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    z-index: 10;
+    top: 100%;
+    left: 0;
+  }
+  
+  .dropdown-content li a {
+    color: #222;
+    padding: 10px 16px;
+    text-decoration: none;
+    display: block;
+  }
+  
+  .dropdown-content li a:hover {
+    background: #f0f0f0;
+  }
+  
+  .logout-popup {
+    position: absolute;
+    right: 20px;
+    top: 60px;
+    background: #fff;
+    color: #222;
+    border: 1px solid #ccc;
+    padding: 16px;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  
+
+
+-----------------
+
+import { Component, OnInit } from '@angular/core';
+import { Booking } from 'src/app/models/booking.model';
+import { Movie } from 'src/app/models/movie.model';
+import { BookingService } from 'src/app/services/booking.service';
+import { MovieService } from 'src/app/services/movie.service';
+
+@Component({
+  selector: 'app-adminviewbooking',
+  templateUrl: './adminviewbooking.component.html',
+  styleUrls: ['./adminviewbooking.component.css']
+})
+export class AdminviewbookingComponent implements OnInit {
+
+  movieDetails:Movie ={
+    title: '',
+    genre: '',
+    duration: 0,
+    price: 0,
+    availableSeats: 0
+  };
+  bookings:Booking[]=[];
+  book:Booking={
+    movieId: 0,
+    totalCost: 0
+  };
+  errorMessage: string;
+  movieId:any;
+  
+  constructor(private bookingService : BookingService,private movieService : MovieService) { }
+
+  ngOnInit(): void {
+    this.loadBookings();
+  }
+
+  loadBookings(){
+    this.bookingService.getAllBookings().subscribe((data)=>{
+      this.bookings=data;
+    console.log(this.bookings);
+    },(error)=>{
+      this.errorMessage='Bookings cant be displayed';
+    });
+  }
+
+  getMovie(){
+    this.movieId=this.movieService.getMovieById(this.book.movieId).subscribe((data)=>{
+      this.movieDetails=data;
+      console.log(this.movieDetails);
+    });
+  }
+
+  updateBookingStatus(bookingId:number, status:string){
+    let booking  = this.bookings.find(b=>b.bookingId==bookingId);
+    if(!booking){
+      this.errorMessage='Booking not found';
+      return;
+    }
+    booking.status=status;
+    if(booking.status=='approve'){
+      alert("booking has been approved")
+    }
+    else if(booking.status=='reject'){
+      alert("booking has been approved")
+    }
+
+    this.bookingService.updateBooking(bookingId,booking).subscribe((data)=>{
+      this.loadBookings();
+    },(error)=>{
+      this.errorMessage='Failed to update.';
+    });
+  }
+}
+
+
+
+----------------------
+
+<nav>
+    <app-adminnav></app-adminnav>
+</nav>
+<div class="view-bookings">
+    <h2>All Bookings</h2>
+    <table border="3">
+        <thead style="background-color: skyblue;">
+            <tr>
+                <th>Movie Title</th>
+                <th>Genre</th>
+                <th>Duration (min)</th>
+                <th>Seats Booked</th>
+                <th>Total Cost ($)</th>
+                <th>User ID</th>
+                <th>User Name</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr *ngFor="let booking of bookings">
+                <td>{{booking.movie.title}}</td>
+                <td>{{booking.movie.genre}}</td>
+                <td>{{booking.movie.duration}}</td>
+                <td>{{booking.seatCount}}</td>
+                <td>{{booking.totalCost}}</td>
+                <td>{{booking.user?.userId}}</td>
+                <td>{{booking.user?.username}}</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+
+---------------
+
+
+.view-bookings {
+    width: 90%;
+    max-width: 700px;
+    justify-content: center;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    margin: 100px auto 0 auto;
+    padding: 32px 24px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+td {
+    padding: 15px;
+}
+
+th {
+    padding: 15px;
+}
+
+
+
+---------------------------
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { Movie } from 'src/app/models/movie.model';
+import { MovieService } from 'src/app/services/movie.service';
+
+@Component({
+  selector: 'app-adminviewmovie',
+  templateUrl: './adminviewmovie.component.html',
+  styleUrls: ['./adminviewmovie.component.css']
+})
+export class AdminviewmovieComponent implements OnInit {
+
+  movies: Movie[] = [];
+
+  erorMessage: string;
+
+  loadMovies()
+  {
+    this.movieService.getMovies().subscribe((data)=>{
+      this.movies = data;
+    },(error)=>{
+  
+    });
+  }
+
+  deleteMovie(movieId:number){
+    this.movieService.deleteMovie(movieId).subscribe((data)=>{
+      console.log("Delete movie: " + movieId);
+      this.loadMovies();
+    },(error)=>{
+
+    });
+  }
+
+  updateMovie(id:number){
+    this.router.navigate(['/admin/add/newMovies',id]);
+  }
+
+  constructor(private movieService: MovieService, private router:Router){}
+
+  ngOnInit(): void {
+    this.loadMovies();
+  }
+
+}
+
+
+------------
+
+<nav>
+    <app-adminnav></app-adminnav>
+</nav>
+<div class="view-movies">
+    <h1>Manage Movies</h1>
+    <table border="1px">
+        <thead style="background-color: skyblue;">
+            <tr>
+                <th>Title</th>
+                <th>Genre</th>
+                <th>Duration</th>
+                <th>Price</th>
+                <th>Available Seats</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+            <tbody>
+                <tr *ngFor="let m of movies">
+                    <td>{{m.title}}</td>
+                    <td>{{m.genre}}</td>
+                    <td>{{m.duration}}</td>
+                    <td>{{m.price}}</td>
+                    <td>{{m.availableSeats}}</td>
+                    <td>
+                        <button (click)="updateMovie(m.movieId)">Edit</button>
+                        <button (click)="deleteMovie(m.movieId)">Delete</button>
+                    </td>
+                </tr>
+            </tbody>
+    </table>
+</div>
+
+
+
+--------------
+
+
+.view-movies {
+    width: 90%;
+    max-width: 700px;
+    justify-content: center;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    margin: 100px auto 0 auto;
+    padding: 32px 24px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+/* h1 {
+    color: skyblue;
+    font-weight: bold;
+    background-color: white;
+    padding: 20px;
+} */
+
+td {
+    padding: 15px;
+}
+
+th {
+    padding: 15px;
+}
+
+/* .view-movies {
+    height: auto;
+    margin: auto;
+    width: 500px;
+    text-align: center;
+} */
+
+
+
+---------------
+
+import { Component, OnInit } from '@angular/core';
+
+@Component({
+  selector: 'app-error',
+  templateUrl: './error.component.html',
+  styleUrls: ['./error.component.css']
+})
+export class ErrorComponent implements OnInit {
+
+  constructor() { }
+
+  ngOnInit(): void {
+  }
+
+}
+
+
+-------------
+
+<br>
+<br>
+<h1>403</h1>
+<h2>Forbidden Access</h2>
+
+
+-----------
+
+import { Component, OnInit } from '@angular/core';
+import { AuthService } from 'src/app/services/auth.service';
+
+@Component({
+  selector: 'app-home',
+  templateUrl: './home.component.html',
+  styleUrls: ['./home.component.css']
+})
+export class HomeComponent implements OnInit {
+
+  userRole: string = null;
+  username: string = null;
+
+  constructor(private authService:AuthService) { }
+
+  ngOnInit(): void {
+    this.userRole = this.authService.getRole();
+    this.username = this.authService.getUser();
+  }
+
+}
+
+
+--------------
+
+
+<app-adminnav *ngIf="userRole === 'admin'"></app-adminnav>
+<app-usernav *ngIf="userRole === 'user'"></app-usernav>
+<app-navbar *ngIf="!userRole"></app-navbar>
+<div class="container">
+    <h1>Welcome to the Cinema Club</h1>
+
+    <h3>Managed by Harshal Tak</h3>
+
+    <h4 *ngIf="username">Logged in as : {{username}}</h4>
+    <br><br>
+    <h4>This is a movie booking application where user can login and book movies.</h4>
+    <h4>USER: Book movies and view your bookings.</h4>
+    <h4>ADMIN: Manage movies and bookings records.</h4>
+</div>
+
+
+------------
+
+.nav {
+    background-color: lightskyblue;
+    width: 100%;
+    color: whitesmoke;
+    padding: 10px;
+    margin: auto;
+
+}
+
+.container {
+    width: 90%;
+    max-width: 700px;
+    justify-content: center;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    margin: 60px auto 0 auto;
+    padding: 32px 24px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+.container:hover {
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.22);
+}
+
+
+
+-------------
+
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { UserDTO } from 'src/app/models/user-dto.model';
+import { User } from 'src/app/models/user.model';
+import { AuthService } from 'src/app/services/auth.service';
+
+@Component({
+  selector: 'app-login',
+  templateUrl: './login.component.html',
+  styleUrls: ['./login.component.css']
+})
+export class LoginComponent implements OnInit {
+
+  loginUser:User={
+    email: '',
+    password: '',
+    username: '',
+    mobileNumber: '',
+    userRole: ''
+  };
+
+  userDto:UserDTO={
+    username:'',
+    role:''
+  };
+
+  constructor(private authService:AuthService,private router:Router ) {}
+  ngOnInit(): void {
+    // throw new Error('Method not implemented.');
+  }
+
+  errorMessage:string = "";
+
+login() {
+  const loginPayload = {
+    username: this.loginUser.username,
+    password: this.loginUser.password,
+  }
+  this.authService.loginUser(loginPayload).subscribe((data: any) => {
+    console.log("Login response: " + JSON.stringify(data));
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+
+    if (data.user.userRole === "admin") {
+      // this.router.navigate(["/admin/view/Movies"]);
+      this.router.navigate(["/"]);
+    } else if (data.user.userRole === "user") {
+      // this.router.navigate(["/user/view/Movies"]);
+      this.router.navigate(["/"]);
+    } else {
+      this.router.navigate(["/"]);
+    }
+  }, error => {
+    console.log("Login failed", error);
+    this.errorMessage = "Invali username or password";
+  });
+}
+
+    
+  }
+
+
+
+-----------------
+<nav>
+    <app-navbar></app-navbar>
+</nav>
+
+<div class="login">
+<h2>Login</h2> 
+User Name : <input type="text" name="username" id="username" [(ngModel)]="loginUser.username"/> <br><br>
+Password : <input type="password" name="password" id="password" [(ngModel)]="loginUser.password"/> <br><br>
+
+<div *ngIf="errorMessage" class="error-message">{{errorMessage}}</div>
+
+<button (click)="login()">Login</button> <br><br>
+
+</div>
+
+---------------
+
+
+.login {
+    text-align: center;
+    background: rgba(135, 206, 235, 0.85); /* skyblue with opacity */
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    padding: 32px 24px;
+    width: 360px;
+    margin: 60px auto 0 auto;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+.login:hover {
+    background: rgba(135, 206, 235, 1);
+    box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.35);
+}
+
+.login input[type="text"],
+.login input[type="password"] {
+    width: 90%;
+    padding: 10px 12px;
+    margin: 14px 0;
+    border: 1px solid #b0c4de;
+    border-radius: 8px;
+    background: #f8fafd;
+    font-size: 1rem;
+    transition: border 0.2s;
+}
+
+.login input[type="text"]:focus,
+.login input[type="password"]:focus {
+    border: 1.5px solid #4682b4;
+    outline: none;
+}
+
+.login button {
+    margin-top: 18px;
+    padding: 10px 28px;
+    background: #4682b4;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.login button:hover {
+    background: #315f7c;
+}
+
+.error-message {
+    color: red;
+    font-weight: bold;
+    margin-top: 10px;
+}
+
+-------------
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from 'src/app/services/auth.service';
+
+@Component({
+  selector: 'app-navbar',
+  templateUrl: './navbar.component.html',
+  styleUrls: ['./navbar.component.css']
+})
+export class NavbarComponent implements OnInit {
+
+  showDropdown:boolean;
+ 
+  showLogoutPopup = false;
+  isLoggedIn = false;
+
+  constructor(private router: Router, private service:AuthService) {
+
+   }
+
+  ngOnInit(): void {
+
+  }
+
+  toggleDropdown(){
+    this.showDropdown=!this.showDropdown;
+  }
+
+  isAdmin(){
+    return this.service.getRole() === "admin";
+  }
+
+  isUser(){
+    return this.service.getRole() === "user";
+  }
+
+  isUserLoggedIn():boolean{
+    return this.service.isLoggedIn();
+  }
+  
+
+  confirmLogout(): void {
+    this.showLogoutPopup = true;
+  }
+
+  cancelLogout(): void {
+    this.showLogoutPopup = false;
+  }
+
+  logout(): void {
+    this.showLogoutPopup = false;
+    this.service.logout()
+    this.router.navigate(['/login']);
+  }
+}
+
+
+---------------
+
+<div class="nav-container">
+    <h1>
+      <a routerLink="/">Cinema Club</a>
+    </h1>
+    <ul>
+      <li><a routerLink="/signup">Register</a></li>
+      <li><a routerLink="/login">Login</a></li>
+      <!-- <li><a routerLink="/">Home</a></li> -->
+    </ul>
+    <!-- <ul *ngIf="isUserLoggedIn()">
+      <li>{{ service.getAuthenticatedUser() }} ({{ service.getRole() }})</li>
+      <li><a routerLink="/">Home</a></li>
+      <ng-container *ngIf="isAdmin()">
+        <li>
+          <a (click)="toggleDropdown()">Movies</a>
+          <ul *ngIf="showDropdown">
+            <li><a routerLink="/admin/add/newMovies">Add Movies</a></li>
+            <li><a routerLink="/admin/view/Movies">View Movies</a></li>
+          </ul>
+        </li>
+        <li><a routerLink="/admin/view/AllBookings">Movie Bookings</a></li>
+      </ng-container>
+      <ng-container *ngIf="isUser()">
+        <li><a routerLink="/user/view/Movies">View Movies</a></li>
+        <li><a routerLink="/user/view/Mybookings">My Bookings</a></li>
+      </ng-container>
+      <li><a (click)="confirmLogout()">Logout</a></li>
+    </ul>
+    <div *ngIf="showLogoutPopup">
+      <p>Are you sure you want to logout?</p>
+      <button (click)="logout()">Yes</button>
+      <button (c  lick)="cancelLogout()">No</button>
+    </div> -->
+  </div>
+  
+
+------------
+
+
+.nav-container {
+    background: rgba(135, 206, 235, 0.85); 
+    backdrop-filter: blur(6px);
+    width: 95%;
+    color: #222;
+    padding: 14px 32px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 0 0 18px 18px;
+    box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.18);
+    border-bottom: 1px solid rgba(255,255,255,0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+.nav-container:hover {
+    background: rgba(135, 206, 235, 1);
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.22);
+}
+
+.nav-container ul {
+    display: flex;
+    flex-direction: row;
+    margin: 0;
+    padding: 0;
+}
+
+.nav-container li {
+    padding: 8px 16px;
+    margin: 0 8px;
+    list-style-type: none;
+    border-radius: 8px;
+    transition: background 0.2s;
+}
+
+.nav-container li:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+.nav-container a {
+    background: transparent;
+    color: #222;
+    text-decoration: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s;
+}
+
+.nav-container a:hover {
+    background: #4682b4;
+    color: #fff;
+}
+
+
+------------
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { User } from 'src/app/models/user.model';
+import { UserService } from 'src/app/services/user.service';
+
+@Component({
+  selector: 'app-registration',
+  templateUrl: './registration.component.html',
+  styleUrls: ['./registration.component.css']
+})
+export class RegistrationComponent implements OnInit {
+
+  newUser: User = {
+    email: '',
+    password: '',
+    username: '',
+    mobileNumber: '',
+    userRole: ''
+  };
+
+  registrationSuccess = false;
+  registrationError = '';
+
+  constructor(private userService: UserService, private router: Router) {}
+  ngOnInit(): void {
+    // throw new Error('Method not implemented.');
+  }
+
+  register() {
+    this.userService.addUser(this.newUser).subscribe({
+      next: (data) => {
+        this.registrationSuccess = true;
+        this.router.navigate(['/login']);
+      },
+      error: (err) => {
+        this.registrationError = 'Registration failed. Please try again.';
+      }
+    });
+  }
+}
+
+
+---------------
+
+<nav>
+  <app-navbar></app-navbar>
+</nav>
+
+<div class="register">
+
+<h2>Register</h2>
+<form (ngSubmit)="register()">
+    <label>
+        Email:
+        <input type="text" [(ngModel)]="newUser.email" name="email" required>
+      </label>
+      <br><br>
+  <label>
+    Username:
+    <input type="text" [(ngModel)]="newUser.username" name="username" required>
+  </label>
+  <br><br>
+  <label>
+    Password:
+    <input type="password" [(ngModel)]="newUser.password" name="password" required>
+  </label>
+  <br><br>
+
+  <label>
+    Mobile Number:
+    <input type="mobileNumber" [(ngModel)]="newUser.mobileNumber" name="mobileNumber" required>
+  </label>
+  <br><br>
+  
+  <label>
+    User Role:
+    <!-- <input type="text" [(ngModel)]="newUser.userRole" name="userRole" required> -->
+    <select name="role" id="role" [(ngModel)]="newUser.userRole" required>
+        <option value="admin">ADMIN</option>
+        <option value="user">USER</option>
+    </select>
+</label>
+  <br><br>
+  <button type="submit">Register</button>
+</form>
+
+<div *ngIf="registrationSuccess" style="color: green;">
+  Registration successful! Redirecting to login...
+</div>
+<div *ngIf="registrationError" style="color: red;">
+  {{ registrationError }}
+</div>
+</div>
+
+
+--------------
+
+
+form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.register {
+    text-align: center;
+    background: rgba(135, 206, 235, 0.85); 
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    padding: 24px 20px;
+    width: 320px;        
+    margin: 40px auto 0 auto; 
+    box-shadow: 0 6px 24px rgba(31, 38, 135, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+.register:hover {
+    background: rgba(135, 206, 235, 1);
+    box-shadow: 0 10px 32px rgba(31, 38, 135, 0.3);
+}
+
+.register input[type="text"],
+.register input[type="password"],
+.register input[type="email"] {
+    width: 90%;
+    padding: 8px 10px;
+    margin: 10px 0;
+    border: 1px solid #b0c4de;
+    border-radius: 6px;
+    background: #f8fafd;
+    font-size: 0.95rem;
+    transition: border 0.2s;
+}
+
+.register input[type="text"]:focus,
+.register input[type="password"]:focus,
+.register input[type="email"]:focus {
+    border: 1.5px solid #4682b4;
+    outline: none;
+}
+
+.register button {
+    margin-top: 14px;
+    padding: 8px 24px;
+    background: #4682b4;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.register button:hover {
+    background: #315f7c;
+}
+
+
+
+---------------
+
+import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Booking } from 'src/app/models/booking.model';
+import { Movie } from 'src/app/models/movie.model';
+import { AuthService } from 'src/app/services/auth.service';
+import { BookingService } from 'src/app/services/booking.service';
+import { MovieService } from 'src/app/services/movie.service';
+
+@Component({
+  selector: 'app-userbookingmovie',
+  templateUrl: './userbookingmovie.component.html',
+  styleUrls: ['./userbookingmovie.component.css']
+})
+export class UserbookingmovieComponent implements OnInit {
+
+  constructor(private movieService:MovieService, private bookingService: BookingService, private authService: AuthService, private router:Router, private route:ActivatedRoute) { }
+
+  ngOnInit(): void {
+    this.route.params.subscribe((params)=>{
+      this.booking.movieId = +params['id'];
+      console.log("Got ID: " + this.booking.movieId)
+    });
+
+    this.movieService.getMovieById(this.booking.movieId).subscribe((data)=>{
+      this.selectedMovie = data;
+
+      this.booking.totalCost = this.selectedMovie.price * this.booking.seatCount;
+    });
+  }
+
+  booking: Booking = {
+    movieId: 0,
+    seatCount: 1,
+    totalCost: 0,
+    status: 'Not Booked',
+  }
+
+  selectedMovie: Movie;
+
+  addBooking()
+  {
+    let booked: Booking = {
+      userId: this.authService.getAuthenticatedUserId(),
+      movieId: this.booking.movieId,
+      seatCount : this.booking.seatCount,
+      totalCost: this.booking.totalCost,
+      status: "pending",
+    };
+
+    console.log("Booking movie id: " + this.booking.movieId)
+    this.bookingService.addBooking(this.authService.getAuthenticatedUserId(),this.booking.movieId,booked).subscribe((data)=>{
+      alert('Booking successful');
+      this.router.navigate(['/user/view/Mybookings']);
+    },(error)=>{
+      alert('Booking failed')
+    })
+  }
+
+
+}
+
+
+---------------
+
+<nav>
+    <app-usernav></app-usernav>
+</nav>
+
+<div class="book-movie">
+
+    <h2>Book Movie</h2>
+
+    <div *ngIf="selectedMovie">
+        <p><strong>Title: </strong> {{selectedMovie.title}}</p>
+        <p><strong>Genre: </strong> {{selectedMovie.genre}}</p>
+        <p><strong>Duration: </strong> {{selectedMovie.duration}} mins</p>
+        <p><strong>Price: </strong> {{selectedMovie.price}}</p>
+        <p><strong>Available Seats: </strong> {{selectedMovie.availableSeats}}</p>
+    </div>
+
+    <form (ngSubmit)="addBooking()">
+        <input type="text" id="seatCount" name="seatCount" [(ngModel)]="booking.seatCount" (ngModelChange)="booking.totalCost = selectedMovie.price * booking.seatCount"
+        min="1" max="{{selectedMovie?.availableSeats}}" required />
+
+    <p><strong>Total Cost: </strong> {{booking.totalCost}}</p>
+
+    <button type="submit">Confirm Booking</button>
+
+    </form>
+</div>
+
+
+----------------
+
+.book-movie {
+  width: 90%;
+  max-width: 700px;
+  justify-content: center;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  border-radius: 18px;
+  margin: 100px auto 0 auto;
+  padding: 32px 24px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  transition: box-shadow 0.3s, background 0.3s;
+  }
+  
+  .book-movie h2 {
+    text-align: center;
+    color: #007bff;
+  }
+  
+  .book-movie p {
+    margin: 8px 0;
+  }
+  
+  form {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  input[type="number"] {
+    padding: 8px;
+    margin-bottom: 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+  }
+  
+  button {
+    padding: 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  
+  button:hover {
+    background-color: #0056b3;
+  }
+  
+
+--------------
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { AuthService } from 'src/app/services/auth.service';
+
+@Component({
+  selector: 'app-usernav',
+  templateUrl: './usernav.component.html',
+  styleUrls: ['./usernav.component.css']
+})
+export class UsernavComponent implements OnInit {
+
+  showLogoutPopup = false;
+  constructor(private router: Router, private service:AuthService) { }
+
+  ngOnInit(): void {
+    this.getUsername();  
+  }
+
+  username: string = "";
+  getUsername(): void {
+    this.username = this.service.getUser();
+  }
+
+  logout(): void {
+    this.showLogoutPopup = false;
+    this.service.logout()
+    this.router.navigate(['/login']);
+  }
+
+  cancelLogout(): void {
+    this.showLogoutPopup = false;
+  }
+
+  confirmLogout()
+ {
+  this.showLogoutPopup = true;
+ }
+
+}
+
+
+------------------
+
+<nav class="user-navbar">
+    <div class="nav-title">Movie User</div>
+    <ul class="nav-left">
+      <li>
+        <a routerLink="/user/view/Movies">View Movies</a>
+      </li>
+    </ul>
+    <div class="nav-center">
+      <a routerLink="/user/view/Mybookings">Movie Bookings</a>
+    </div>
+    <div class="user-section">
+      <h3>Welcome to the club: {{username}}</h3>
+    </div>
+    <div class="nav-right">
+      <a (click)="confirmLogout()" style="background-color: red; padding: 10px;">Logout</a>
+    </div>
+    <div *ngIf="showLogoutPopup" class="logout-popup">
+      <p>Are you sure you want to logout?</p>
+      <button (click)="logout()">Yes</button>
+      <button (click)="cancelLogout()">No</button>
+    </div>
+  </nav>
+  
+
+--------------
+
+.user-navbar {
+  background: rgba(135, 206, 235, 0.85);
+  backdrop-filter: blur(6px);
+  width: 95%;
+  color: #222;
+  padding: 14px 32px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 0 0 18px 18px;
+  box-shadow: 0 4px 24px 0 rgba(31, 38, 135, 0.18);
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+  transition: box-shadow 0.3s, background 0.3s;
+  }
+  
+  .nav-title {
+    font-weight: bold;
+    font-size: 1.3em;
+    margin-right: 30px;
+  }
+  
+  .nav-left, .nav-center, .nav-right {
+    display: flex;
+    align-items: center;
+  }
+  
+  .nav-left {
+    flex: 1;
+    gap: 20px;
+    /* background-color: white;
+    padding: 10px; */
+  }
+  
+  .nav-center {
+    flex: 1;
+    justify-content: center;
+    /* background-color: white;
+    padding: 10px; */
+  }
+
+  .user-section {
+    flex: 1;
+    justify-content: center;
+    /* background-color: white;
+    padding: 10px; */
+  }
+  
+  .nav-right {
+    flex: 0.7;
+    justify-content: flex-end;
+  }
+  
+  .nav-left ul,
+  .nav-left li {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* .dropdown {
+    position: relative;
+  } */
+  
+  .drop-btn {
+    cursor: pointer;
+    /* background: none; */
+    background-color: white;
+    border: none;
+    color: #222;
+    font-size: 1em;
+    padding: 8px 12px;
+  }
+  
+  /* .dropdown-content {
+    display: block;
+    position: absolute;
+    background: #fff;
+    min-width: 160px;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+    z-index: 10;
+    top: 100%;
+    left: 0;
+  }
+  
+  .dropdown-content li a {
+    color: #222;
+    padding: 10px 16px;
+    text-decoration: none;
+    display: block;
+  }
+  
+  .dropdown-content li a:hover {
+    background: #f0f0f0;
+  } */
+  
+  .logout-popup {
+    position: absolute;
+    right: 20px;
+    top: 60px;
+    background: #fff;
+    color: #222;
+    border: 1px solid #ccc;
+    padding: 16px;
+    z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  
+--------------
+
+import { Component, OnInit } from '@angular/core';
+import { Booking } from 'src/app/models/booking.model';
+import { AuthService } from 'src/app/services/auth.service';
+import { BookingService } from 'src/app/services/booking.service';
+
+@Component({
+  selector: 'app-userviewbooking',
+  templateUrl: './userviewbooking.component.html',
+  styleUrls: ['./userviewbooking.component.css']
+})
+export class UserviewbookingComponent implements OnInit {
+
+  bookings: Booking[] = [];
+
+  userId: number;
+
+  errorMessage: string = "";
+
+  loadUserBookings(){
+    const userId = this.authService.getAuthenticatedUserId();
+    console.log("UserID: " + userId);
+    if(userId)
+    {
+      this.bookingService.getUserBookings(userId).subscribe({
+        next: (data) =>{
+          console.log("Got data")
+          this.bookings = data;
+        },
+        error: (err) => {
+        console.error("Error fetching");
+        this.errorMessage = "Failed to login"
+        }
+      });
+    }
+    else
+    {
+      this.errorMessage = "User not authenticated";
+    }
+  }
+
+  constructor(private bookingService:BookingService,private authService:AuthService) { }
+
+  ngOnInit(): void {
+    this.loadUserBookings();
+  }
+
+  cancelBooking(bookingId: number)
+  {
+    this.bookingService.deleteBooking(bookingId).subscribe((data)=>{
+      console.log("Canceled booking");
+      this.loadUserBookings();
+    })
+  }
+
+}
+
+
+--------------
+
+<nav>
+  <app-usernav></app-usernav>
+</nav>
+
+<div class="user-bookings">
+    <h2>My Bookings</h2>
+  
+    <div *ngIf="errorMessage" class="error">{{ errorMessage }}</div>
+  
+    <div *ngIf="bookings.length === 0 && !errorMessage">
+      <p>No bookings found.</p>
+    </div>
+  
+    <table *ngIf="bookings.length > 0">
+      <thead>
+        <tr>
+          <th>Booking ID</th>
+          <th>Movie Title</th>
+          <th>Seats</th>
+          <th>Total Cost</th>
+          <!-- <th>Status</th> -->
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let booking of bookings">
+          <td>{{ booking.bookingId }}</td>
+          <td>{{ booking.movie?.title }}</td>
+          <td>{{ booking.seatCount }}</td>
+          <td>{{ booking.totalCost }}</td>
+          <!-- <td>{{ booking.status }}</td> -->
+          <td>
+            <button (click)="cancelBooking(booking.bookingId)">Cancel Booking</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
+
+------------
+
+
+.user-bookings {
+  width: 90%;
+  max-width: 700px;
+  justify-content: center;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  border-radius: 18px;
+  margin: 100px auto 0 auto;
+  padding: 32px 24px;
+  box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+  transition: box-shadow 0.3s, background 0.3s;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+  }
+  
+  th, td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+  }
+  
+  .error {
+    color: red;
+    margin-top: 10px;
+  }
+  
+
+--------------
+
+import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { Movie } from 'src/app/models/movie.model';
+import { MovieService } from 'src/app/services/movie.service';
+
+@Component({
+  selector: 'app-userviewmovie',
+  templateUrl: './userviewmovie.component.html',
+  styleUrls: ['./userviewmovie.component.css']
+})
+export class UserviewmovieComponent implements OnInit {
+
+  movies: Movie[] = [];
+
+  errorMessage: string = '';
+
+  loadMovies()
+  {
+    this.service.getMovies().subscribe((data)=>{
+      this.movies = data;
+      console.log("Got data of movies");
+    })
+  }
+
+  navigateToBooking(movieId:number)
+  {
+    this.router.navigate(['/user/bookView/',movieId]);
+  }
+  constructor(private service:MovieService, private router:Router) { }
+
+  ngOnInit(): void {
+    this.loadMovies();
+  }
+
+}
+
+
+-----------
+
+<nav>
+    <app-usernav></app-usernav>
+</nav>
+<div class="view-movies">
+    <h1>Movies</h1>
+    <table border="1px">
+        <thead style="background-color: skyblue;">
+            <tr>
+                <th>Title</th>
+                <th>Genre</th>
+                <th>Duration</th>
+                <th>Price</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+            <tbody>
+                <tr *ngFor="let m of movies">
+                    <td>{{m.title}}</td>
+                    <td>{{m.genre}}</td>
+                    <td>{{m.duration}}</td>
+                    <td>{{m.price}}</td>
+                    <td>
+                        <button (click)="navigateToBooking(m.movieId)">Book Now</button>
+                    </td>
+                </tr>
+            </tbody>
+    </table>
+</div>
+
+
+-------------
+
+
+
+td {
+    padding: 15px;
+}
+
+th {
+    padding: 15px;
+}
+
+.view-movies {
+    width: 90%;
+    max-width: 700px;
+    justify-content: center;
+    text-align: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(6px);
+    border-radius: 18px;
+    margin: 100px auto 0 auto;
+    padding: 32px 24px;
+    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+    transition: box-shadow 0.3s, background 0.3s;
+}
+
+
+----------
+
+import { Injectable } from '@angular/core';
+import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, UrlTree, Router } from '@angular/router';
+import { Observable } from 'rxjs';
+import { AuthService } from '../services/auth.service';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class AuthGuard implements CanActivate {
+
+  constructor(private authService: AuthService, private router:Router){}
+  canActivate():boolean {
+    const role = this.authService.getRole();
+    if(role === 'admin'){
+      return true;
+    }
+    else
+    {
+      this.router.navigate(['/error']);
+    }
+    // route: ActivatedRouteSnapshot,
+    // state: RouterStateSnapshot): Observable<boolean | UrlTree> | Promise<boolean | UrlTree> | boolean | UrlTree {
+    // return true;
+
+    if(this.authService.isLoggedIn()){
+      return true;
+    }
+    else
+    {
+      this.router.navigate(['/login']);import { Injectable } from '@angular/core';
+import {
+  HttpRequest,
+  HttpHandler,
+  HttpEvent,
+  HttpInterceptor
+} from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+@Injectable()
+export class AuthInterceptor implements HttpInterceptor {
+
+  constructor() {}
+
+  intercept(request: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
+    const token = localStorage.getItem("token");
+
+    if(token)
+    {
+      request = request.clone({
+        setHeaders: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+    }
+    return next.handle(request);
+  }
+}
+
+
+-------------
+
+export class User {
+    userId?: number;
+    email: string;
+    password: string;
+    username: string;
+    mobileNumber: string;
+    userRole: string;
+}
+
+
+export interface UserDTO {
+    username:string;
+    role:string;
+}
+
+export interface Movie {
+    movieId?: number;
+    title: string;
+    genre: string;
+    duration: number;
+    price: number;
+    availableSeats: number;
+}
+
+export class Login {
+    email: string;
+    password: string;
+}
+
+export interface Booking {
+    bookingId?: number;
+    userId?: number;
+    movieId: number;
+    seatCount?: number;
+    totalCost: number;
+    status?: string;
+}
+
+      return false;
+    }
+  }
+  
+}
+
+
+----------
+
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { User } from '../models/user.model';
+import { Observable } from 'rxjs';
+import { UserDTO } from '../models/user-dto.model';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class AuthService {
+
+  getAuthenticatedUserId(): number {
+    const user = localStorage.getItem("user");
+    if(user) {
+      const parsedUser = JSON.parse(user);
+      return parsedUser.userId;
+    }
+    return null;
+  }
+
+  backendUrl = "https://ide-beaddefccefb332560772bdafdcdedbeeccfone.premiumproject.examly.io/proxy/8080/api";
+  private loggedIn = false;
+  constructor(private http:HttpClient) { }
+
+  loginUser(user: {username: string, password: string}):Observable<UserDTO>
+  {
+    this.loggedIn = true;
+    return this.http.post<UserDTO>(this.backendUrl+"/user/login",user);
+  }
+
+  logout()
+  {
+    localStorage.clear();
+    this.loggedIn = false;
+  }
+
+  isLoggedIn(): boolean
+  {
+    return !!localStorage.getItem("token");
+  }
+
+  getRole(): string | null {
+    const user = localStorage.getItem("user");
+    return user ? JSON.parse(user).userRole : null;
+  }
+
+  getToken() : string | null {
+    return localStorage.getItem("token");
+  }
+
+  getUser(): string | null {
+    const user = localStorage.getItem("user");
+    return user ? JSON.parse(user).username : null;
+  }
+
+}
+
+
+------------
+
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { Booking } from '../models/booking.model';
+import { Observable } from 'rxjs';
+import {APP_URL} from '../app.constants';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class BookingService {
+
+  constructor(private http:HttpClient) { }
+
+  addBooking(userId: number, movieId: number, booking: Booking): Observable<Booking> {
+    return this.http.post<Booking>(`${APP_URL}/booking/movie/${userId}/${movieId}`, booking);
+  }
+
+  getUserBookings(userId: number): Observable<Booking[]> {
+    return this.http.get<Booking[]>(`${APP_URL}/booking/user/${userId}`);
+  }
+
+  getBookingById(bookingId: number): Observable<Booking[]> {
+    return this.http.get<Booking[]>(`${APP_URL}/${bookingId}`);
+  }
+
+  updateBooking(bookingId: number, booking: Booking): Observable<Booking> {
+    return this.http.put<Booking>(`${APP_URL}/booking/${bookingId}`, booking);
+  }
+
+  deleteBooking(bookingId: number): Observable<void> {
+    return this.http.delete<void>(`${APP_URL}/booking/${bookingId}`);
+  }
+
+  getAllBookings(): Observable<Booking[]> {
+    return this.http.get<Booking[]>(`${APP_URL}/booking`);
+  }
+}
+
+
+
+---------------------
+
+import { Injectable } from '@angular/core';
+import { Movie } from '../models/movie.model';
+import { Observable } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
+import {APP_URL} from '../app.constants';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class MovieService {
+
+  constructor(private http:HttpClient){}
+
+  // private movies: Movie[] = [
+  //   {
+  //     movieId: 101,
+  //     title: "abc",
+  //     genre: "abc",
+  //     duration: 123,
+  //     price: 11,
+  //   },
+  //   {
+  //     movieId: 102,
+  //     title: "abc",
+  //     genre: "abc",
+  //     duration: 123,
+  //     price: 11,
+  //   },
+  //   {
+  //     movieId: 103,
+  //     title: "abc",
+  //     genre: "abc",
+  //     duration: 123,
+  //     price: 11,
+  //   },
+  // ]
+
+  getMovies(): Observable<Movie[]>
+  {
+    return this.http.get<Movie[]>(`${APP_URL}/movie`);
+  }
+
+  addMovie(movie:Movie):Observable<Movie>
+  {
+    return this.http.post<Movie>(`${APP_URL}/movie`,movie);
+  }
+
+  getMovieById(movieId:number): Observable<Movie>
+  {
+    return this.http.get<Movie>(`${APP_URL}/movie/${movieId}`);
+  }
+
+  deleteMovie(movieId:number): Observable<void>
+  {
+    return this.http.delete<void>(`${APP_URL}/movie/${movieId}`);
+  }
+
+  updateMovie(movieId:number,movie:Movie): Observable<Movie>
+  {
+    return this.http.put<Movie>(`${APP_URL}/movie/${movieId}`,movie);
+  }
+}
+
+
+------------
+
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { User } from '../models/user.model';
+import { Observable } from 'rxjs';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class UserService {
+
+  backendUrl = "https://ide-beaddefccefb332560772bdafdcdedbeeccfone.premiumproject.examly.io/proxy/8080/api";
+
+  constructor(private http:HttpClient) { }
+
+  addUser(user:User):Observable<User> {
+    return this.http.post<User>(this.backendUrl+"/user/register",user);
+  }
+
+  getAllUsers():Observable<User[]> {
+    return this.http.get<User[]>(this.backendUrl+"/user");
+  }
+}
+
+
+
+-----------
+
+
+import { NgModule } from '@angular/core';
+import { Routes, RouterModule } from '@angular/router';
+import { HomeComponent } from './components/home/home.component';
+import { ErrorComponent } from './components/error/error.component';
+import { AdminaddmovieComponent } from './components/adminaddmovie/adminaddmovie.component';
+import { AdminviewmovieComponent } from './components/adminviewmovie/adminviewmovie.component';
+import { AdminviewbookingComponent } from './components/adminviewbooking/adminviewbooking.component';
+import { UserviewmovieComponent } from './components/userviewmovie/userviewmovie.component';
+import { UserviewbookingComponent } from './components/userviewbooking/userviewbooking.component';
+import { RegistrationComponent } from './components/registration/registration.component';
+import { LoginComponent } from './components/login/login.component';
+import { NavbarComponent } from './components/navbar/navbar.component';
+import { UserbookingmovieComponent } from './components/userbookingmovie/userbookingmovie.component';
+import { AuthGuard } from './guards/auth.guard';
+
+const routes: Routes = [
+  {path:'',component:HomeComponent},
+  {path:'error',component:ErrorComponent},
+  {path:'admin/add/newMovies',component:AdminaddmovieComponent,canActivate:[AuthGuard]},
+  {path:'admin/add/newMovies/:id',component:AdminaddmovieComponent, canActivate: [AuthGuard]},
+  {path:'admin/view/Movies',component:AdminviewmovieComponent, canActivate:[AuthGuard]},
+  {path:'admin/view/AllBookings',component:AdminviewbookingComponent, canActivate:[AuthGuard]},
+  {path:'user/view/Movies',component:UserviewmovieComponent},
+  {path:'user/view/Mybookings',component:UserviewbookingComponent},
+  {path:'user/bookView/:id',component:UserbookingmovieComponent},
+  {path:'signup',component:RegistrationComponent},
+  {path:'login',component:LoginComponent},
+  {path:'navbar',component:NavbarComponent},
+
+
+];
+
+@NgModule({
+  imports: [RouterModule.forRoot(routes)],
+  exports: [RouterModule]
+})
+export class AppRoutingModule { }
+
+
+-------------
+
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-root',
+  templateUrl: './app.component.html',
+  styleUrls: ['./app.component.css']
+})
+export class AppComponent {
+  title = 'angularapp';
+}
+
+
+---------------
+
+<main>
+    <router-outlet></router-outlet>
+</main>
+
+------------
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+main {
+    background-image: url(https://png.pngtree.com/background/20250106/original/pngtree-city-picture-image_15455718.jpg);
+    background-size: cover;
+    background-position: center center;
+    background-attachment: fixed;
+}
+
+------------
+
+import { BrowserModule } from '@angular/platform-browser';
+import { NgModule } from '@angular/core';
+
+import { AppRoutingModule } from './app-routing.module';
+import { AppComponent } from './app.component';
+import { HomeComponent } from './components/home/home.component';
+import { ErrorComponent } from './components/error/error.component';
+import { AdminaddmovieComponent } from './components/adminaddmovie/adminaddmovie.component';
+import { AdminviewmovieComponent } from './components/adminviewmovie/adminviewmovie.component';
+import { AdminviewbookingComponent } from './components/adminviewbooking/adminviewbooking.component';
+import { UserviewmovieComponent } from './components/userviewmovie/userviewmovie.component';
+import { UserviewbookingComponent } from './components/userviewbooking/userviewbooking.component';
+import { NavbarComponent } from './components/navbar/navbar.component';
+import { LoginComponent } from './components/login/login.component';
+import { RegistrationComponent } from './components/registration/registration.component';
+import { AuthguardComponent } from './components/authguard/authguard.component';
+import { AdminnavComponent } from './components/adminnav/adminnav.component';
+import { UsernavComponent } from './components/usernav/usernav.component';
+import {HTTP_INTERCEPTORS, HttpClientModule} from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
+import { AuthInterceptor } from './interceptors/auth.interceptor';
+import { UserbookingmovieComponent } from './components/userbookingmovie/userbookingmovie.component';
+// import { AuthInterceptor} from './interceptors/auth.intercpetor';
+
+@NgModule({
+  declarations: [
+    AppComponent,
+    HomeComponent,
+    ErrorComponent,
+    AdminaddmovieComponent,
+    AdminviewmovieComponent,
+    AdminviewbookingComponent,
+    UserviewmovieComponent,
+    UserviewbookingComponent,
+    NavbarComponent,
+    LoginComponent,
+    RegistrationComponent,
+    AuthguardComponent,
+    AdminnavComponent,
+    UsernavComponent,
+    UserbookingmovieComponent
+  ],
+  imports: [
+    BrowserModule,
+    AppRoutingModule,
+    FormsModule,
+    HttpClientModule
+  ],
+  providers: [
+    {provide: HTTP_INTERCEPTORS, useClass: AuthInterceptor, multi: true}
+  ],
+  bootstrap: [AppComponent]
+})
+export class AppModule { }
+
+
+------------
+
+export const APP_URL = "https://ide-beaddefccefb332560772bdafdcdedbeeccfone.premiumproject.examly.io/proxy/8080/api";
